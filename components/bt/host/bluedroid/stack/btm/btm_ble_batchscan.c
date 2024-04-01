@@ -103,12 +103,20 @@ void btm_ble_batchscan_filter_track_adv_vse_cback(UINT8 len, UINT8 *p)
                 STREAM_TO_UINT8(adv_data.adv_pkt_len, p);
                 if (adv_data.adv_pkt_len > 0) {
                     adv_data.p_adv_pkt_data = osi_malloc(adv_data.adv_pkt_len);
+                    if (adv_data.p_adv_pkt_data == NULL) {
+                        ESP_LOGE("BTM_BLE_BATCHSCAN", "%s p_adv_pkt_data alloc failed", __func__);
+                        return;
+                    }
                     memcpy(adv_data.p_adv_pkt_data, p, adv_data.adv_pkt_len);
                 }
 
                 STREAM_TO_UINT8(adv_data.scan_rsp_len, p);
                 if (adv_data.scan_rsp_len > 0) {
                     adv_data.p_scan_rsp_data = osi_malloc(adv_data.scan_rsp_len);
+                    if (adv_data.p_adv_pkt_data == NULL) {
+                        ESP_LOGE("BTM_BLE_BATCHSCAN", "%s p_adv_pkt_data alloc failed", __func__);
+                        return;
+                    }
                     memcpy(adv_data.p_scan_rsp_data, p, adv_data.scan_rsp_len);
                 }
             }
@@ -212,6 +220,10 @@ void btm_ble_batchscan_enq_rep_data(UINT8 report_format, UINT8 num_records, UINT
         p_orig_data = ble_batchscan_cb.main_rep_q.p_data[index];
         if (NULL != p_orig_data) {
             p_app_data = osi_malloc(len + data_len);
+            if (p_app_data == NULL) {
+                ESP_LOGE("BTM_BLE_BATCHSCAN", "%s p_app_data alloc failed", __func__);
+                return;
+            }
             memcpy(p_app_data, p_orig_data, len);
             memcpy(p_app_data + len, p_data, data_len);
             osi_free(p_orig_data);
@@ -220,6 +232,10 @@ void btm_ble_batchscan_enq_rep_data(UINT8 report_format, UINT8 num_records, UINT
             ble_batchscan_cb.main_rep_q.data_len[index] += data_len;
         } else {
             p_app_data = osi_malloc(data_len);
+            if (p_app_data == NULL) {
+                ESP_LOGE("BTM_BLE_BATCHSCAN", "%s p_app_data alloc failed", __func__);
+                return;
+            }
             memcpy(p_app_data, p_data, data_len);
             ble_batchscan_cb.main_rep_q.p_data[index] = p_app_data;
             ble_batchscan_cb.main_rep_q.num_records[index] = num_records;

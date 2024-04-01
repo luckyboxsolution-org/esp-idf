@@ -789,16 +789,32 @@ void btm_ble_multi_adv_init(void)
     if (btm_cb.cmn_ble_vsc_cb.adv_inst_max > 0) {
         btm_multi_adv_cb.p_adv_inst = osi_malloc( sizeof(tBTM_BLE_MULTI_ADV_INST) *
                                       (btm_cb.cmn_ble_vsc_cb.adv_inst_max));
+        
+        if (btm_multi_adv_cb.p_adv_inst == NULL) {
+            ESP_LOGE("BTM_BLE_MULTI_ADV", "%s p_adv_inst alloc failed", __func__);
+            return;
+        }
         memset(btm_multi_adv_cb.p_adv_inst, 0, sizeof(tBTM_BLE_MULTI_ADV_INST) *
                (btm_cb.cmn_ble_vsc_cb.adv_inst_max));
 
         btm_multi_adv_cb.op_q.p_sub_code = osi_malloc( sizeof(UINT8) *
                                            (btm_cb.cmn_ble_vsc_cb.adv_inst_max));
+        if (btm_multi_adv_cb.op_q.p_sub_code == NULL) {
+            ESP_LOGE("BTM_BLE_MULTI_ADV", "%s p_sub_code alloc failed", __func__);
+            free(btm_multi_adv_cb.p_adv_inst);
+            return;
+        }
         memset(btm_multi_adv_cb.op_q.p_sub_code, 0,
                sizeof(UINT8) * (btm_cb.cmn_ble_vsc_cb.adv_inst_max));
 
         btm_multi_adv_cb.op_q.p_inst_id = osi_malloc( sizeof(UINT8) *
                                           (btm_cb.cmn_ble_vsc_cb.adv_inst_max));
+        if (btm_multi_adv_cb.op_q.p_inst_id == NULL) {
+            ESP_LOGE("BTM_BLE_MULTI_ADV", "%s p_inst_id alloc failed", __func__);
+            free(btm_multi_adv_cb.p_adv_inst);
+            free(btm_multi_adv_cb.op_q.p_inst_id);
+            return;
+        }
         memset(btm_multi_adv_cb.op_q.p_inst_id, 0,
                sizeof(UINT8) * (btm_cb.cmn_ble_vsc_cb.adv_inst_max));
     }

@@ -591,6 +591,10 @@ const controller_t *controller_get_interface(void)
         loaded = true;
 #if (BT_BLE_DYNAMIC_ENV_MEMORY == TRUE)
         controller_param_ptr = (controller_local_param_t *)osi_calloc(sizeof(controller_local_param_t));
+        if (controller_param_ptr == NULL) {
+            ESP_LOGE("BLUEDROID_CONTROLLER", "%s controller_param_ptr alloc failed", __func__);
+            return NULL;
+        }
         assert(controller_param_ptr);
 #endif
         controller_param.hci = hci_layer_get_interface();

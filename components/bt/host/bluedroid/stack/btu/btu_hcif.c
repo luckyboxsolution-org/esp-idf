@@ -1213,6 +1213,10 @@ static void btu_hcif_command_complete_evt(BT_HDR *response, void *context)
     }
 #endif
     BT_HDR *event = osi_calloc(sizeof(BT_HDR) + sizeof(command_complete_hack_t));
+    if (event == NULL) {
+        ESP_LOGE("BTU_HCIF", "%s event alloc failed", __func__);
+        return;
+    }
     command_complete_hack_t *hack = (command_complete_hack_t *)&event->data[0];
 #if (BLE_50_FEATURE_SUPPORT == TRUE)
     UINT8 status = 0;
@@ -1451,6 +1455,10 @@ static void btu_hcif_command_status_evt_on_task(BT_HDR *event)
 static void btu_hcif_command_status_evt(uint8_t status, BT_HDR *command, void *context)
 {
     BT_HDR *event = osi_calloc(sizeof(BT_HDR) + sizeof(command_status_hack_t));
+    if (event == NULL) {
+        ESP_LOGE("BTU_HCIF", "%s event alloc failed", __func__);
+        return;
+    }
     command_status_hack_t *hack = (command_status_hack_t *)&event->data[0];
 
     hack->callback = btu_hcif_command_status_evt_on_task;

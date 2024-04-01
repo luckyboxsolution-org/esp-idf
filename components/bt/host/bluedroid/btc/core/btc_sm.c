@@ -69,6 +69,11 @@ btc_sm_handle_t btc_sm_init(const btc_sm_handler_t *p_handlers, btc_sm_state_t i
     }
 
     p_cb = (btc_sm_cb_t *)osi_malloc(sizeof(btc_sm_cb_t));
+    if (p_cb == NULL) {
+        ESP_LOGE("BTC_SM", "%s p_cb alloc failed", __func__);
+        return NULL;
+    }
+    
     p_cb->state = initial_state;
     p_cb->p_handlers = (btc_sm_handler_t *)p_handlers;
 

@@ -143,6 +143,10 @@ static void search_devices_copy_cb(btc_msg_t *msg, void *p_dest, void *p_src)
         return;
     }
     p_dest_data->p_data = (void *)osi_malloc(p_dest_data->len);
+    if (p_dest_data->p_data == NULL) {
+        ESP_LOGE("BTC_GAP_BT", "%s p_data alloc failed", __func__);
+        return;
+    }
     memset(p_dest_data->p_data, 0x00, p_dest_data->len);
     memcpy(p_dest_data->p_data, p_src_data->p_data, p_dest_data->len);
 
@@ -187,6 +191,10 @@ static void search_service_record_copy_cb(btc_msg_t *msg, void *p_dest, void *p_
         return;
     }
     p_dest_data->p_data = osi_malloc(p_dest_data->len);
+    if (p_dest_data->p_data == NULL) {
+        ESP_LOGE("BTC_GAP_BT", "%s p_data alloc failed", __func__);
+        return;
+    }
     memset(p_dest_data->p_data, 0x00, p_dest_data->len);
     memcpy(p_dest_data->p_data, p_src_data->p_data, p_dest_data->len);
     if ( p_dest_data->len > sizeof(tBTA_DM_SEARCH)){
@@ -557,6 +565,10 @@ static void search_services_copy_cb(btc_msg_t *msg, void *p_dest, void *p_src)
         return;
     }
     p_dest_data->p_data = osi_malloc(p_dest_data->len);
+    if (p_dest_data->p_data == NULL) {
+        ESP_LOGE("BTC_GAP_BT", "%s p_data alloc failed");
+        return;
+    }
     memset(p_dest_data->p_data, 0x00, p_dest_data->len);
     memcpy(p_dest_data->p_data, p_src_data->p_data, p_dest_data->len);
 

@@ -535,7 +535,6 @@ void bta_gattc_co_cache_addr_save(BD_ADDR bd_addr, hash_key_t hash_key)
         APPL_TRACE_ERROR("%s malloc failed!", __func__);
         return;
     }
-
     // check the address list has the same address or not
     // for the same address, it's hash key may be change due to service change
     if ((index = bta_gattc_co_find_addr_in_cache(bd_addr)) != INVALID_ADDR_NUM) {

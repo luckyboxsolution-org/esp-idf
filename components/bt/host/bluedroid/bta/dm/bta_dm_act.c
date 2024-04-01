@@ -2309,6 +2309,10 @@ void bta_dm_queue_search (tBTA_DM_MSG *p_data)
     }
 
     bta_dm_search_cb.p_search_queue = (tBTA_DM_MSG *)osi_malloc(sizeof(tBTA_DM_API_SEARCH));
+    if (bta_dm_search_cb.p_search_queue == NULL) {
+        ESP_LOGE("BTA_DM_ACT", "%s p_search_queue alloc failed", __func__);
+        return;
+    }
     memcpy(bta_dm_search_cb.p_search_queue, p_data, sizeof(tBTA_DM_API_SEARCH));
 
 }
@@ -2330,6 +2334,10 @@ void bta_dm_queue_disc (tBTA_DM_MSG *p_data)
     }
 
     bta_dm_search_cb.p_search_queue = (tBTA_DM_MSG *)osi_malloc(sizeof(tBTA_DM_API_DISCOVER));
+    if (bta_dm_search_cb.p_search_queue == NULL) {
+        ESP_LOGE("BTA_DM_ACT", "%s p_search_queue alloc failed", __func__);
+        return;
+    }
     memcpy(bta_dm_search_cb.p_search_queue, p_data, sizeof(tBTA_DM_API_DISCOVER));
 }
 #endif  ///SDP_INCLUDED == TRUE
@@ -6440,11 +6448,17 @@ static void bta_dm_gatt_disc_complete(UINT16 conn_id, tBTA_GATT_STATUS status)
             if ( bta_dm_search_cb.ble_raw_used > 0 ) {
                 p_msg->disc_result.result.disc_res.p_raw_data = osi_malloc(bta_dm_search_cb.ble_raw_used);
 
-                memcpy( p_msg->disc_result.result.disc_res.p_raw_data,
-                        bta_dm_search_cb.p_ble_rawdata,
-                        bta_dm_search_cb.ble_raw_used );
+                if (p_msg->disc_result.result.disc_res.p_raw_data) {
+                    memcpy( p_msg->disc_result.result.disc_res.p_raw_data,
+                            bta_dm_search_cb.p_ble_rawdata,
+                            bta_dm_search_cb.ble_raw_used );
 
-                p_msg->disc_result.result.disc_res.raw_data_size = bta_dm_search_cb.ble_raw_used;
+                    p_msg->disc_result.result.disc_res.raw_data_size = bta_dm_search_cb.ble_raw_used;
+                } else {
+                    ESP_LOGE("BTA_DM_ACT", "%s bta disc buffer alloc failed");
+                    p_msg->disc_result.result.disc_res.raw_data_size = 0;
+                }
+
             } else {
                 p_msg->disc_result.result.disc_res.p_raw_data = NULL;
                 bta_dm_search_cb.p_ble_rawdata = 0;

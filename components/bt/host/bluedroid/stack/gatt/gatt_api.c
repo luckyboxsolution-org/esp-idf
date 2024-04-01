@@ -1029,6 +1029,10 @@ tGATT_STATUS GATTC_Read (UINT16 conn_id, tGATT_READ_TYPE type, tGATT_READ_PARAM 
             p_clcb->s_handle = 0;
             /* copy multiple handles in CB */
             p_read_multi = (tGATT_READ_MULTI *)osi_malloc(sizeof(tGATT_READ_MULTI));
+            if (p_read_multi == NULL) {
+                ESP_LOGE("GATT_API", "%s p_read_multi alloc failed", __func__);
+                return GATT_INSUF_RESOURCE;
+            }
             p_clcb->p_attr_buf = (UINT8 *)p_read_multi;
             memcpy (p_read_multi, &p_read->read_multiple, sizeof(tGATT_READ_MULTI));
         case GATT_READ_BY_HANDLE:

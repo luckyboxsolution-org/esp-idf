@@ -76,6 +76,10 @@ static BOOLEAN background_connection_add(bt_bdaddr_t *address)
     background_connection_t *connection = hash_map_get(background_connections, address);
     if (!connection) {
         connection = osi_calloc(sizeof(background_connection_t));
+        if (connection == NULL) {
+            ESP_LOGE("BTM_BLE_BGCONN", "%s connection alloc failed", __func__);
+            return FALSE;
+        }
         connection->address = *address;
         hash_map_set(background_connections, &(connection->address), connection);
         return TRUE;
@@ -805,6 +809,10 @@ void btm_ble_enqueue_direct_conn_req(void *p_param)
 {
     tBTM_BLE_CONN_REQ   *p = (tBTM_BLE_CONN_REQ *)osi_malloc(sizeof(tBTM_BLE_CONN_REQ));
 
+    if (p == NULL) {
+        ESP_LOGE("BTM_BLE_BGCONN", "%s conn_req alloc failed", __func__);
+        return;
+    }
     p->p_param = p_param;
 
     fixed_queue_enqueue(btm_cb.ble_ctr_cb.conn_pending_q, p, FIXED_QUEUE_MAX_TIMEOUT);
