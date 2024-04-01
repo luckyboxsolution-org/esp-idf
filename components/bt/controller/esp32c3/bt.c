@@ -628,8 +628,8 @@ static void *queue_create_wrapper(uint32_t queue_len, uint32_t item_size)
     queue->handle = xQueueCreateStatic( queue_len, item_size, ((uint8_t*)(queue->storage)) + sizeof(StaticQueue_t), (StaticQueue_t*)(queue->storage));
     if (queue->handle == NULL) {
         ESP_LOGE("BT", "%s queue create alloc failed", __func__);
-        free(queue->storage);
-        free(queue);
+        heap_caps_free(queue->storage);
+        heap_caps_free(queue);
         return NULL;
     }
     assert(queue->handle);

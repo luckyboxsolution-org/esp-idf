@@ -1063,7 +1063,7 @@ void btc_av_event_deep_copy(btc_msg_t *msg, void *p_dest, void *p_src)
                             av_src->meta_msg.p_msg->vendor.p_vendor_data,
                             av_src->meta_msg.p_msg->vendor.vendor_len);
                     } else {
-                        ESP_LOGE("BTC_AV", "%s p_msg alloc failed", __func__);
+                        ESP_LOGE("BTC_AV", "%s p_vendor_data alloc failed", __func__);
                         free(av_dest->meta_msg.p_msg);
                         break;
                     }

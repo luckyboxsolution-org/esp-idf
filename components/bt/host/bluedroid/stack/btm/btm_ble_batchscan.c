@@ -113,8 +113,11 @@ void btm_ble_batchscan_filter_track_adv_vse_cback(UINT8 len, UINT8 *p)
                 STREAM_TO_UINT8(adv_data.scan_rsp_len, p);
                 if (adv_data.scan_rsp_len > 0) {
                     adv_data.p_scan_rsp_data = osi_malloc(adv_data.scan_rsp_len);
-                    if (adv_data.p_adv_pkt_data == NULL) {
-                        ESP_LOGE("BTM_BLE_BATCHSCAN", "%s p_adv_pkt_data alloc failed", __func__);
+                    if (adv_data.p_scan_rsp_data == NULL) {
+                        ESP_LOGE("BTM_BLE_BATCHSCAN", "%s p_scan_rsp_data alloc failed", __func__);
+                        if (adv_data.p_adv_pkt_data) {
+                            free(adv_data.p_adv_pkt_data);
+                        }
                         return;
                     }
                     memcpy(adv_data.p_scan_rsp_data, p, adv_data.scan_rsp_len);
