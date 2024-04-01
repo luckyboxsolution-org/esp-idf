@@ -612,6 +612,7 @@ static void *queue_create_wrapper(uint32_t queue_len, uint32_t item_size)
         ESP_LOGE("BT", "%s queue alloc failed: no mem", __func__);
         return NULL;
     }
+    
     assert(queue);
 
 #if CONFIG_SPIRAM_USE_MALLOC
