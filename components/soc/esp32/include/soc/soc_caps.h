@@ -1,6 +1,6 @@
 
 /*
- * SPDX-FileCopyrightText: 2020-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2023 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -133,7 +133,8 @@
 
 
 /*-------------------------- CACHE/MMU CAPS ----------------------------------*/
-#define SOC_SHARED_IDCACHE_SUPPORTED            1   //Shared Cache for both instructions and data
+#define SOC_SHARED_IDCACHE_SUPPORTED            1   //Shared Cache for both instructions and data within one core
+#define SOC_IDCACHE_PER_CORE                    1   //Independent Cache unit pre core
 #define SOC_MMU_LINEAR_ADDRESS_REGION_NUM       5
 
 
@@ -142,9 +143,9 @@
 #define SOC_CPU_INTR_NUM                32
 #define SOC_CPU_HAS_FPU                 1
 
-#define SOC_CPU_BREAKPOINTS_NUM         2
-#define SOC_CPU_WATCHPOINTS_NUM         2
-#define SOC_CPU_WATCHPOINT_SIZE         64 // bytes
+#define SOC_CPU_BREAKPOINTS_NUM             2
+#define SOC_CPU_WATCHPOINTS_NUM             2
+#define SOC_CPU_WATCHPOINT_MAX_REGION_SIZE  64 // bytes
 
 /*-------------------------- DAC CAPS ----------------------------------------*/
 #define SOC_DAC_PERIPH_NUM      2

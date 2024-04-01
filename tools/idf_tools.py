@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 #
-# SPDX-FileCopyrightText: 2019-2022 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2019-2024 Espressif Systems (Shanghai) CO LTD
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -27,7 +27,6 @@
 # * To start using the tools, run `eval "$(idf_tools.py export)"` — this will update
 #   the PATH to point to the installed tools and set up other environment variables
 #   needed by the tools.
-
 import argparse
 import contextlib
 import copy
@@ -46,7 +45,8 @@ import sys
 import tarfile
 import tempfile
 import time
-from collections import OrderedDict, namedtuple
+from collections import namedtuple
+from collections import OrderedDict
 from json import JSONEncoder
 from ssl import SSLContext  # noqa: F401
 from tarfile import TarFile  # noqa: F401
@@ -1172,7 +1172,7 @@ class IDFEnv:
                 if global_idf_tools_path:  # mypy fix for Optional[str] in the next call
                     # the directory doesn't exist if this is run on a clean system the first time
                     mkdir_p(global_idf_tools_path)
-                with open(idf_env_file_path, 'w') as w:
+                with open(idf_env_file_path, 'w', encoding='utf-8') as w:
                     info('Updating {}'.format(idf_env_file_path))
                     json.dump(dict(self), w, cls=IDFEnvEncoder, ensure_ascii=False, indent=4)  # type: ignore
             except (IOError, OSError):
@@ -1189,7 +1189,7 @@ class IDFEnv:
         idf_env_obj = cls()
         try:
             idf_env_file_path = os.path.join(global_idf_tools_path or '', IDF_ENV_FILE)
-            with open(idf_env_file_path, 'r') as idf_env_file:
+            with open(idf_env_file_path, 'r', encoding='utf-8') as idf_env_file:
                 idf_env_json = json.load(idf_env_file)
 
                 try:
@@ -1314,44 +1314,33 @@ def get_python_exe_and_subdir() -> Tuple[str, str]:
 
 
 def get_idf_version() -> str:
-    version_file_path = os.path.join(global_idf_path, 'version.txt')  # type: ignore
+    """
+    Return ESP-IDF version.
+    """
+    idf_version: Optional[str] = None
+
+    version_file_path = os.path.join(str(global_idf_path), 'version.txt')
     if os.path.exists(version_file_path):
         with open(version_file_path, 'r') as version_file:
             idf_version_str = version_file.read()
-    else:
-        idf_version_str = ''
+
+        match = re.match(r'^v([0-9]+\.[0-9]+).*', idf_version_str)
+        if match:
+            idf_version = match.group(1)
+
+    if idf_version is None:
         try:
-            idf_version_str = subprocess.check_output(['git', 'describe'],
-                                                      cwd=global_idf_path, env=os.environ,
-                                                      stderr=subprocess.DEVNULL).decode()
-        except OSError:
-            # OSError should cover FileNotFoundError and WindowsError
-            warn('Git was not found')
-        except subprocess.CalledProcessError:
-            # This happens quite often when the repo is shallow. Don't print a warning because there are other
-            # possibilities for version detection.
-            pass
-    match = re.match(r'^v([0-9]+\.[0-9]+).*', idf_version_str)
-    if match:
-        idf_version = match.group(1)  # type: Optional[str]
-    else:
-        idf_version = None
-        # fallback when IDF is a shallow clone
-        try:
-            with open(os.path.join(global_idf_path, 'components', 'esp_common', 'include', 'esp_idf_version.h')) as f:  # type: ignore
+            with open(os.path.join(str(global_idf_path), 'components', 'esp_common', 'include', 'esp_idf_version.h')) as f:
                 m = re.search(r'^#define\s+ESP_IDF_VERSION_MAJOR\s+(\d+).+?^#define\s+ESP_IDF_VERSION_MINOR\s+(\d+)',
                               f.read(), re.DOTALL | re.MULTILINE)
                 if m:
                     idf_version = '.'.join((m.group(1), m.group(2)))
                 else:
-                    warn('Reading IDF version from C header file failed!')
+                    fatal('Reading IDF version from C header file failed!')
+                    raise SystemExit(1)
         except Exception as e:
-            warn('Is it not possible to determine the IDF version: {}'.format(e))
-
-    if idf_version is None:
-        fatal('IDF version cannot be determined')
-        raise SystemExit(1)
-
+            fatal(f'It is not possible to determine the IDF version: {e}')
+            raise SystemExit(1)
     return idf_version
 
 
@@ -1568,6 +1557,94 @@ def action_check(args):  # type: ignore
         raise SystemExit(1)
 
 
+# The following functions are used in process_tool which is a part of the action_export.
+def handle_recommended_version_to_use(
+    tool,
+    tool_name,
+    version_to_use,
+    prefer_system_hint,
+):  # type: (IDFTool, str, str, str) -> Tuple[list, dict]
+    tool_export_paths = tool.get_export_paths(version_to_use)
+    tool_export_vars = tool.get_export_vars(version_to_use)
+    if tool.version_in_path and tool.version_in_path not in tool.versions:
+        info('Not using an unsupported version of tool {} found in PATH: {}.'.format(
+            tool.name, tool.version_in_path) + prefer_system_hint, f=sys.stderr)
+    return tool_export_paths, tool_export_vars
+
+
+def handle_supported_or_deprecated_version(tool, tool_name):  # type: (IDFTool, str) -> None
+    version_obj: IDFToolVersion = tool.versions[tool.version_in_path]  # type: ignore
+    if version_obj.status == IDFToolVersion.STATUS_SUPPORTED:
+        info('Using a supported version of tool {} found in PATH: {}.'.format(tool_name, tool.version_in_path),
+             f=sys.stderr)
+        info('However the recommended version is {}.'.format(tool.get_recommended_version()),
+             f=sys.stderr)
+    elif version_obj.status == IDFToolVersion.STATUS_DEPRECATED:
+        warn('using a deprecated version of tool {} found in PATH: {}'.format(tool_name, tool.version_in_path))
+
+
+def handle_missing_versions(
+    tool,
+    tool_name,
+    install_cmd,
+    prefer_system_hint
+):  # type: (IDFTool, str, str, str) -> None
+    fatal('tool {} has no installed versions. Please run \'{}\' to install it.'.format(
+        tool.name, install_cmd))
+    if tool.version_in_path and tool.version_in_path not in tool.versions:
+        info('An unsupported version of tool {} was found in PATH: {}. '.format(tool_name, tool.version_in_path) +
+             prefer_system_hint, f=sys.stderr)
+
+
+def process_tool(
+    tool,
+    tool_name,
+    args,
+    install_cmd,
+    prefer_system_hint
+):  # type: (IDFTool, str, argparse.Namespace, str, str) -> Tuple[list, dict, bool]
+    tool_found: bool = True
+    tool_export_paths: List[str] = []
+    tool_export_vars: Dict[str, str] = {}
+
+    tool.find_installed_versions()
+    recommended_version_to_use = tool.get_preferred_installed_version()
+
+    if not tool.is_executable and recommended_version_to_use:
+        tool_export_vars = tool.get_export_vars(recommended_version_to_use)
+        return tool_export_paths, tool_export_vars, tool_found
+
+    if recommended_version_to_use and not args.prefer_system:
+        tool_export_paths, tool_export_vars = handle_recommended_version_to_use(
+            tool, tool_name, recommended_version_to_use, prefer_system_hint
+        )
+        return tool_export_paths, tool_export_vars, tool_found
+
+    if tool.version_in_path:
+        if tool.version_in_path not in tool.versions:
+            # unsupported version
+            if args.prefer_system:  # type: ignore
+                warn('using an unsupported version of tool {} found in PATH: {}'.format(
+                    tool.name, tool.version_in_path))
+                return tool_export_paths, tool_export_vars, tool_found
+            else:
+                # unsupported version in path
+                pass
+        else:
+            # supported/deprecated version in PATH, use it
+            handle_supported_or_deprecated_version(tool, tool_name)
+            return tool_export_paths, tool_export_vars, tool_found
+
+    if not tool.versions_installed:
+        if tool.get_install_type() == IDFTool.INSTALL_ALWAYS:
+            handle_missing_versions(tool, tool_name, install_cmd, prefer_system_hint)
+            tool_found = False
+        # If a tool found, but it is optional and does not have versions installed, use whatever is in PATH.
+        return tool_export_paths, tool_export_vars, tool_found
+
+    return tool_export_paths, tool_export_vars, tool_found
+
+
 def action_export(args):  # type: ignore
     if args.deactivate and different_idf_detected():
         deactivate_statement(args)
@@ -1587,58 +1664,10 @@ def action_export(args):  # type: ignore
     for name, tool in tools_info.items():
         if tool.get_install_type() == IDFTool.INSTALL_NEVER:
             continue
-        tool.find_installed_versions()
-        version_to_use = tool.get_preferred_installed_version()
-
-        if not tool.is_executable and version_to_use:
-            tool_export_vars = tool.get_export_vars(version_to_use)
-            export_vars = {**export_vars, **tool_export_vars}
-            continue
-
-        if tool.version_in_path:
-            if tool.version_in_path not in tool.versions:
-                # unsupported version
-                if args.prefer_system:  # type: ignore
-                    warn('using an unsupported version of tool {} found in PATH: {}'.format(
-                        tool.name, tool.version_in_path))
-                    continue
-                else:
-                    # unsupported version in path
-                    pass
-            else:
-                # supported/deprecated version in PATH, use it
-                version_obj = tool.versions[tool.version_in_path]
-                if version_obj.status == IDFToolVersion.STATUS_SUPPORTED:
-                    info('Using a supported version of tool {} found in PATH: {}.'.format(name, tool.version_in_path),
-                         f=sys.stderr)
-                    info('However the recommended version is {}.'.format(tool.get_recommended_version()),
-                         f=sys.stderr)
-                elif version_obj.status == IDFToolVersion.STATUS_DEPRECATED:
-                    warn('using a deprecated version of tool {} found in PATH: {}'.format(name, tool.version_in_path))
-                continue
-
-        if not tool.versions_installed:
-            if tool.get_install_type() == IDFTool.INSTALL_ALWAYS:
-                all_tools_found = False
-                fatal('tool {} has no installed versions. Please run \'{}\' to install it.'.format(
-                    tool.name, install_cmd))
-                if tool.version_in_path and tool.version_in_path not in tool.versions:
-                    info('An unsupported version of tool {} was found in PATH: {}. '.format(name, tool.version_in_path) +
-                         prefer_system_hint, f=sys.stderr)
-                continue
-            else:
-                # tool is optional, and does not have versions installed
-                # use whatever is available in PATH
-                continue
-
-        if tool.version_in_path and tool.version_in_path not in tool.versions:
-            info('Not using an unsupported version of tool {} found in PATH: {}.'.format(
-                 tool.name, tool.version_in_path) + prefer_system_hint, f=sys.stderr)
-
-        export_paths = tool.get_export_paths(version_to_use)
-        if export_paths:
-            paths_to_export += export_paths
-        tool_export_vars = tool.get_export_vars(version_to_use)
+        tool_export_paths, tool_export_vars, tool_found = process_tool(tool, name, args, install_cmd, prefer_system_hint)
+        if not tool_found:
+            all_tools_found = False
+        paths_to_export += tool_export_paths
         export_vars = {**export_vars, **tool_export_vars}
 
     current_path = os.getenv('PATH')

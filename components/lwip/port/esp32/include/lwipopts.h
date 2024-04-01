@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2015-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2015-2024 Espressif Systems (Shanghai) CO LTD
  */
 #ifndef LWIP_HDR_ESP_LWIPOPTS_H
 #define LWIP_HDR_ESP_LWIPOPTS_H
@@ -47,6 +47,11 @@ extern "C" {
  */
 #ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING
 #define LWIP_TCPIP_CORE_LOCKING         1
+#ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT
+#define LWIP_TCPIP_CORE_LOCKING_INPUT   1
+#else
+#define LWIP_TCPIP_CORE_LOCKING_INPUT   0
+#endif
 #define LOCK_TCPIP_CORE()     do { sys_mutex_lock(&lock_tcpip_core); sys_thread_tcpip(LWIP_CORE_LOCK_MARK_HOLDER); } while(0)
 #define UNLOCK_TCPIP_CORE()   do { sys_thread_tcpip(LWIP_CORE_LOCK_UNMARK_HOLDER); sys_mutex_unlock(&lock_tcpip_core);  } while(0)
 #ifdef CONFIG_LWIP_CHECK_THREAD_SAFETY
@@ -55,6 +60,7 @@ extern "C" {
 
 #else
 #define LWIP_TCPIP_CORE_LOCKING         0
+#define LWIP_TCPIP_CORE_LOCKING_INPUT   0
 #ifdef CONFIG_LWIP_CHECK_THREAD_SAFETY
 #define LWIP_ASSERT_CORE_LOCKED()     do { LWIP_ASSERT("Required to run in TCPIP context!", sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER)); } while(0)
 #endif /* CONFIG_LWIP_CHECK_THREAD_SAFETY */
@@ -229,6 +235,11 @@ extern "C" {
  */
 #define IP_REASS_MAX_PBUFS              10
 
+/**
+ * IP_DEFAULT_TTL: Default value for Time-To-Live used by transport layers.
+ */
+#define IP_DEFAULT_TTL                   CONFIG_LWIP_IP_DEFAULT_TTL
+
 /*
    ----------------------------------
    ---------- ICMP options ----------
@@ -354,11 +365,9 @@ extern "C" {
 #define DHCP_COARSE_TIMER_SECS          CONFIG_LWIP_DHCP_COARSE_TIMER_SECS
 #define DHCP_NEXT_TIMEOUT_THRESHOLD     (3)
 /* Since for embedded devices it's not that hard to miss a discover packet, so lower
- * the discover retry backoff time from (2,4,8,16,32,60,60)s to (500m,1,2,4,8,15,15)s.
+ * the discover and request retry backoff time from (2,4,8,16,32,60,60)s to (500m,1,2,4,4,4,4)s.
  */
-#define DHCP_REQUEST_TIMEOUT_SEQUENCE(state, tries)   (state == DHCP_STATE_REQUESTING ? \
-                                                       (uint16_t)(1 * 1000) : \
-                                                       (uint16_t)(((tries) < 6 ? 1 << (tries) : 60) * 250))
+#define DHCP_REQUEST_TIMEOUT_SEQUENCE(tries)   ((uint16_t)(((tries) < 5 ? 1 << (tries) : 16) * 250))
 
 static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
 {
@@ -448,7 +457,7 @@ static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
 
 /** The maximum of DNS servers
  */
-#define DNS_MAX_SERVERS                 3
+#define DNS_MAX_SERVERS                 CONFIG_LWIP_DNS_MAX_SERVERS
 
 /** ESP specific option only applicable if ESP_DNS=1
  *
@@ -466,6 +475,14 @@ static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
 #else
 #define LWIP_DNS_SUPPORT_MDNS_QUERIES   0
 #endif
+
+#ifdef CONFIG_LWIP_FALLBACK_DNS_SERVER_SUPPORT
+#define FALLBACK_DNS_SERVER_ADDRESS(address)                           \
+        do {    ip_addr_t *server_dns = address;                            \
+                char server_ip[] = CONFIG_LWIP_FALLBACK_DNS_SERVER_ADDRESS; \
+                ipaddr_aton(server_ip, server_dns);                         \
+        } while (0)
+#endif /* CONFIG_LWIP_FALLBACK_DNS_SERVER_SUPPORT */
 
 /*
    ---------------------------------
@@ -524,6 +541,21 @@ static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
 #define TCP_QUEUE_OOSEQ                 1
 #else
 #define TCP_QUEUE_OOSEQ                 0
+#endif
+
+/**
+ * TCP_OOSEQ_MAX_PBUFS: The maximum number of pbufs
+ * queued on ooseq per pcb
+ */
+#if TCP_QUEUE_OOSEQ
+#define TCP_OOSEQ_MAX_PBUFS             CONFIG_LWIP_TCP_OOSEQ_MAX_PBUFS
+#endif
+
+/**
+ * TCP_OOSEQ_TIMEOUT: Timeout for each pbuf queued in TCP OOSEQ, in RTOs.
+ */
+#if TCP_QUEUE_OOSEQ
+#define TCP_OOSEQ_TIMEOUT               CONFIG_LWIP_TCP_OOSEQ_TIMEOUT
 #endif
 
 /**
@@ -1127,6 +1159,25 @@ static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
 #endif
 
 /**
+ * LWIP_ND6==1: Enable ND6 protocol in IPv6
+ */
+#ifdef CONFIG_LWIP_ND6
+#define LWIP_ND6                        1
+#else
+#define LWIP_ND6                        0
+#endif
+
+/**
+ * LWIP_FORCE_ROUTER_FORWARDING==1: the router flag in NA packet will always set to 1,
+ * otherwise, never set router flag for NA packets.
+ */
+#ifdef CONFIG_LWIP_FORCE_ROUTER_FORWARDING
+#define LWIP_FORCE_ROUTER_FORWARDING    1
+#else
+#define LWIP_FORCE_ROUTER_FORWARDING    0
+#endif
+
+/**
  * LWIP_IPV6_NUM_ADDRESSES: Number of IPv6 addresses per netif.
  */
 #define LWIP_IPV6_NUM_ADDRESSES         CONFIG_LWIP_IPV6_NUM_ADDRESSES
@@ -1500,6 +1551,7 @@ static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
 #define ESP_LWIP_LOCK                   1
 #define ESP_THREAD_PROTECTION           1
 #define LWIP_SUPPORT_CUSTOM_PBUF        1
+#define ESP_LWIP_FALLBACK_DNS_PREFER_IPV4 0
 
 /*
    -----------------------------------------

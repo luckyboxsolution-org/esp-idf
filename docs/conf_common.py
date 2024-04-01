@@ -4,13 +4,9 @@
 #
 # This file is imported from a language-specific conf.py (ie en/conf.py or
 # zh_CN/conf.py)
-
 # type: ignore
 # pylint: disable=wildcard-import
 # pylint: disable=undefined-variable
-
-from __future__ import print_function, unicode_literals
-
 import os.path
 import re
 
@@ -46,6 +42,7 @@ CLASSIC_BT_DOCS = ['api-reference/bluetooth/classic_bt.rst',
                    'api-reference/bluetooth/esp_a2dp.rst',
                    'api-reference/bluetooth/esp_avrc.rst',
                    'api-reference/bluetooth/esp_hidd.rst',
+                   'api-reference/bluetooth/esp_hidh.rst',
                    'api-reference/bluetooth/esp_l2cap_bt.rst',
                    'api-reference/bluetooth/esp_sdp.rst',
                    'api-reference/bluetooth/esp_hf_defs.rst',
@@ -207,6 +204,7 @@ github_repo = 'espressif/esp-idf'
 html_context['github_user'] = 'espressif'
 html_context['github_repo'] = 'esp-idf'
 
+
 # Extra options required by sphinx_idf_theme
 project_slug = 'esp-idf'
 versions_url = 'https://dl.espressif.com/dl/esp-idf/idf_versions.js'
@@ -256,6 +254,8 @@ def conf_setup(app, config):
     except FileNotFoundError:
         # Not for all target
         pass
+
+    config.html_baseurl = f'https://docs.espressif.com/projects/esp-idf/{config.language}/stable/{config.idf_target}'
 
 
 user_setup_callback = conf_setup

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -21,7 +21,6 @@
 #include "esp_log.h"
 #include "esp_check.h"
 #include "esp_lcd_common.h"
-#include "esp_private/spi_common_internal.h"
 
 static const char *TAG = "lcd_panel.io.spi";
 
@@ -53,8 +52,11 @@ typedef struct {
     int lcd_cmd_bits;          // Bit width of LCD command
     int lcd_param_bits;        // Bit width of LCD parameter
     struct {
-        unsigned int dc_data_level: 1;   // Indicates the level of DC line when tranfering data
+        unsigned int dc_cmd_level: 1;    // Indicates the level of DC line when transferring command
+        unsigned int dc_data_level: 1;   // Indicates the level of DC line when transferring color data
+        unsigned int dc_param_level: 1;  // Indicates the level of DC line when transferring parameters
         unsigned int octal_mode: 1;      // Indicates whether the transmitting is enabled with octal mode (8 data lines)
+        unsigned int quad_mode: 1;       // Indicates whether the transmitting is enabled with quad mode (4 data lines)
     } flags;
     lcd_spi_trans_descriptor_t trans_pool[]; // Transaction pool
 } esp_lcd_panel_io_spi_t;
@@ -94,8 +96,11 @@ esp_err_t esp_lcd_new_panel_io_spi(esp_lcd_spi_bus_handle_t bus, const esp_lcd_p
         ESP_GOTO_ON_ERROR(gpio_config(&io_conf), err, TAG, "configure GPIO for D/C line failed");
     }
 
+    spi_panel_io->flags.dc_cmd_level = io_config->flags.dc_high_on_cmd;
     spi_panel_io->flags.dc_data_level = !io_config->flags.dc_low_on_data;
+    spi_panel_io->flags.dc_param_level = !io_config->flags.dc_low_on_param;
     spi_panel_io->flags.octal_mode = io_config->flags.octal_mode;
+    spi_panel_io->flags.quad_mode = io_config->flags.quad_mode;
     spi_panel_io->on_color_trans_done = io_config->on_color_trans_done;
     spi_panel_io->user_ctx = io_config->user_ctx;
     spi_panel_io->lcd_cmd_bits = io_config->lcd_cmd_bits;
@@ -107,9 +112,13 @@ esp_err_t esp_lcd_new_panel_io_spi(esp_lcd_spi_bus_handle_t bus, const esp_lcd_p
     spi_panel_io->base.tx_color = panel_io_spi_tx_color;
     spi_panel_io->base.del = panel_io_spi_del;
     spi_panel_io->base.register_event_callbacks = panel_io_spi_register_event_callbacks;
-    spi_panel_io->spi_trans_max_bytes = spi_bus_get_attr((spi_host_device_t)bus)->max_transfer_sz;
+
+    size_t max_trans_bytes = 0;
+    ESP_GOTO_ON_ERROR(spi_bus_get_max_transaction_len((spi_host_device_t)bus, &max_trans_bytes), err, TAG, "get spi max transaction len failed");
+    spi_panel_io->spi_trans_max_bytes = max_trans_bytes;
+
     *ret_io = &(spi_panel_io->base);
-    ESP_LOGD(TAG, "new spi lcd panel io @%p", spi_panel_io);
+    ESP_LOGD(TAG, "new spi lcd panel io @%p, max_trans_bytes: %d", spi_panel_io, (int)max_trans_bytes);
 
     return ESP_OK;
 
@@ -220,7 +229,7 @@ static esp_err_t panel_io_spi_tx_param(esp_lcd_panel_io_t *io, int lcd_cmd, cons
 
     if (send_cmd) {
         spi_lcd_prepare_cmd_buffer(spi_panel_io, &lcd_cmd);
-        lcd_trans->flags.dc_gpio_level = !spi_panel_io->flags.dc_data_level; // set D/C line to command mode
+        lcd_trans->flags.dc_gpio_level = spi_panel_io->flags.dc_cmd_level; // set D/C level in command phase
         lcd_trans->base.length = spi_panel_io->lcd_cmd_bits;
         lcd_trans->base.tx_buffer = &lcd_cmd;
         // command is short, using polling mode
@@ -230,7 +239,7 @@ static esp_err_t panel_io_spi_tx_param(esp_lcd_panel_io_t *io, int lcd_cmd, cons
 
     if (param && param_size) {
         spi_lcd_prepare_param_buffer(spi_panel_io, param, param_size);
-        lcd_trans->flags.dc_gpio_level = spi_panel_io->flags.dc_data_level; // set D/C line to data mode
+        lcd_trans->flags.dc_gpio_level = spi_panel_io->flags.dc_param_level; // set D/C level in param phase
         lcd_trans->base.length = param_size * 8; // transaction length is in bits
         lcd_trans->base.tx_buffer = param;
         lcd_trans->base.flags &= ~SPI_TRANS_CS_KEEP_ACTIVE;
@@ -274,7 +283,7 @@ static esp_err_t panel_io_spi_rx_param(esp_lcd_panel_io_t *io, int lcd_cmd, void
 
     if (send_cmd) {
         spi_lcd_prepare_cmd_buffer(spi_panel_io, &lcd_cmd);
-        lcd_trans->flags.dc_gpio_level = !spi_panel_io->flags.dc_data_level; // set D/C line to command mode
+        lcd_trans->flags.dc_gpio_level = spi_panel_io->flags.dc_cmd_level; // set D/C level in command phase
         lcd_trans->base.length = spi_panel_io->lcd_cmd_bits;
         lcd_trans->base.tx_buffer = &lcd_cmd;
         // command is short, using polling mode
@@ -283,7 +292,7 @@ static esp_err_t panel_io_spi_rx_param(esp_lcd_panel_io_t *io, int lcd_cmd, void
     }
 
     if (param && param_size) {
-        lcd_trans->flags.dc_gpio_level = spi_panel_io->flags.dc_data_level; // set D/C line to data mode
+        lcd_trans->flags.dc_gpio_level = spi_panel_io->flags.dc_param_level; // set D/C level in param phase
         lcd_trans->base.length = 0;
         lcd_trans->base.tx_buffer = NULL;
         lcd_trans->base.rxlength = param_size * 8; // Read length in bits
@@ -323,9 +332,12 @@ static esp_err_t panel_io_spi_tx_color(esp_lcd_panel_io_t *io, int lcd_cmd, cons
 
         spi_lcd_prepare_cmd_buffer(spi_panel_io, &lcd_cmd);
         lcd_trans->base.user = spi_panel_io;
-        lcd_trans->flags.dc_gpio_level = !spi_panel_io->flags.dc_data_level; // set D/C line to command mode
+        lcd_trans->flags.dc_gpio_level = spi_panel_io->flags.dc_cmd_level; // set D/C level in command phase
         lcd_trans->base.length = spi_panel_io->lcd_cmd_bits;
         lcd_trans->base.tx_buffer = &lcd_cmd;
+        if(color && color_size) {
+            lcd_trans->base.flags |= SPI_TRANS_CS_KEEP_ACTIVE;
+        }
         if (spi_panel_io->flags.octal_mode) {
             // use 8 lines for transmitting command, address and data
             lcd_trans->base.flags |= (SPI_TRANS_MULTILINE_CMD | SPI_TRANS_MULTILINE_ADDR | SPI_TRANS_MODE_OCT);
@@ -363,12 +375,15 @@ static esp_err_t panel_io_spi_tx_color(esp_lcd_panel_io_t *io, int lcd_cmd, cons
         }
 
         lcd_trans->base.user = spi_panel_io;
-        lcd_trans->flags.dc_gpio_level = spi_panel_io->flags.dc_data_level; // set D/C line to data mode
+        lcd_trans->flags.dc_gpio_level = spi_panel_io->flags.dc_data_level; // set D/C level in data phase
         lcd_trans->base.length = chunk_size * 8; // transaction length is in bits
         lcd_trans->base.tx_buffer = color;
         if (spi_panel_io->flags.octal_mode) {
             // use 8 lines for transmitting command, address and data
             lcd_trans->base.flags |= (SPI_TRANS_MULTILINE_CMD | SPI_TRANS_MULTILINE_ADDR | SPI_TRANS_MODE_OCT);
+        } else if (spi_panel_io->flags.quad_mode) {
+            // use 4 lines only for transmitting data
+            lcd_trans->base.flags |= SPI_TRANS_MODE_QIO;
         }
 
         // color data is usually large, using queue+blocking mode

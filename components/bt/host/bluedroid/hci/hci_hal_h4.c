@@ -142,14 +142,19 @@ static bool hci_hal_env_init(const hci_hal_callbacks_t *upper_callbacks, osi_thr
 
 static void hci_hal_env_deinit(void)
 {
-    fixed_queue_free(hci_hal_env.rx_q, osi_free_func);
+    fixed_queue_t *rx_q = hci_hal_env.rx_q;
+    struct pkt_queue *adv_rpt_q = hci_hal_env.adv_rpt_q;
+    struct osi_event *upstream_data_ready = hci_hal_env.upstream_data_ready;
+
     hci_hal_env.rx_q = NULL;
-
-    pkt_queue_destroy(hci_hal_env.adv_rpt_q, NULL);
     hci_hal_env.adv_rpt_q = NULL;
-
-    osi_event_delete(hci_hal_env.upstream_data_ready);
     hci_hal_env.upstream_data_ready = NULL;
+
+    fixed_queue_free(rx_q, osi_free_func);
+
+    pkt_queue_destroy(adv_rpt_q, NULL);
+
+    osi_event_delete(upstream_data_ready);
 
 #if (BLE_ADV_REPORT_FLOW_CONTROL == TRUE)
     hci_hal_env.cmd_buf_in_use = true;
@@ -600,14 +605,17 @@ int
 ble_hs_hci_rx_evt(uint8_t *hci_ev, void *arg)
 {
     if(esp_bluedroid_get_status() == ESP_BLUEDROID_STATUS_UNINITIALIZED) {
-	return 0;
+        ble_hci_trans_buf_free(hci_ev);
+        return 0;
     }
     uint16_t len = hci_ev[1] + 3;
     uint8_t *data = (uint8_t *)malloc(len);
+
     if (data == NULL) {
         ESP_LOGE("HCI_HAL_H4", "%s data alloc failed", __func__);
         return 0;
     }
+  
     data[0] = 0x04;
     memcpy(&data[1], hci_ev, len - 1);
     ble_hci_trans_buf_free(hci_ev);
@@ -620,12 +628,14 @@ ble_hs_hci_rx_evt(uint8_t *hci_ev, void *arg)
 int
 ble_hs_rx_data(struct os_mbuf *om, void *arg)
 {
-    uint16_t len = om->om_len + 1;
+    uint16_t len = OS_MBUF_PKTHDR(om)->omp_len + 1;
     uint8_t *data = (uint8_t *)malloc(len);
+
     if (data == NULL) {
         ESP_LOGE("HCI_HAL_H4", "%s data alloc failed", __func__);
         return 0;
     }
+
     data[0] = 0x02;
     os_mbuf_copydata(om, 0, len - 1, &data[1]);
     host_recv_pkt_cb(data, len);

@@ -56,8 +56,15 @@
  */
 #ifdef CONFIG_MBEDTLS_HAVE_TIME
 #define MBEDTLS_HAVE_TIME
+/**
+ * \def MBEDTLS_PLATFORM_MS_TIME_ALT
+ *
+ * Define platform specific function to get time since bootup in milliseconds.
+ */
+#define MBEDTLS_PLATFORM_MS_TIME_ALT
 #else
 #undef MBEDTLS_HAVE_TIME
+#undef MBEDTLS_PLATFORM_MS_TIME_ALT
 #endif
 
 /**
@@ -148,6 +155,12 @@
 
 #ifdef CONFIG_MBEDTLS_HARDWARE_AES
 #define MBEDTLS_GCM_ALT
+#ifdef CONFIG_MBEDTLS_GCM_SUPPORT_NON_AES_CIPHER
+    /* Prefer hardware and fallback to software */
+    #define MBEDTLS_GCM_NON_AES_CIPHER_SOFT_FALLBACK
+#else
+    #undef MBEDTLS_GCM_NON_AES_CIPHER_SOFT_FALLBACK
+#endif
 #endif
 
 /* MBEDTLS_SHAxx_ALT to enable hardware SHA support
@@ -485,6 +498,19 @@
 #define MBEDTLS_ECP_NIST_OPTIM
 #else
 #undef MBEDTLS_ECP_NIST_OPTIM
+#endif
+
+/**
+ * \def MBEDTLS_ECP_FIXED_POINT_OPTIM
+ *
+ * Enable speed up fixed-point multiplication.
+ *
+ * Comment this macro to disable FIXED POINT curves optimisation.
+ */
+#ifdef CONFIG_MBEDTLS_ECP_FIXED_POINT_OPTIM
+#define MBEDTLS_ECP_FIXED_POINT_OPTIM 1
+#else
+#define MBEDTLS_ECP_FIXED_POINT_OPTIM 0
 #endif
 
 /**
@@ -2718,25 +2744,6 @@
 #define MBEDTLS_X509_CRT_WRITE_C
 
 /**
- * \def MBEDTLS_X509_ALLOW_UNSUPPORTED_CRITICAL_EXTENSION
- *
-  * Alow the X509 parser to not break-off when parsing an X509 certificate
- * and encountering an unknown critical extension.
- *
- * Module:  library/x509_crt.c
- *
- * Requires: MBEDTLS_X509_CRT_PARSE_C
- *
- * This module is supports loading of certificates with extensions that
- * may not be supported by mbedtls.
- */
-#ifdef CONFIG_MBEDTLS_ALLOW_UNSUPPORTED_CRITICAL_EXT
-#define MBEDTLS_X509_ALLOW_UNSUPPORTED_CRITICAL_EXTENSION
-#else
-#undef MBEDTLS_X509_ALLOW_UNSUPPORTED_CRITICAL_EXTENSION
-#endif
-
-/**
  * \def MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK
  *
  * If set, this enables the X.509 API `mbedtls_x509_crt_verify_with_ca_cb()`
@@ -2842,10 +2849,10 @@
 #undef MBEDTLS_SSL_CID_OUT_LEN_MAX
 #endif
 
-/** \def MBEDTLS_SSL_CID_PADDING_GRANULARITY
+/** \def MBEDTLS_SSL_CID_TLS1_3_PADDING_GRANULARITY
  *
  * This option controls the use of record plaintext padding
- * when using the Connection ID extension in DTLS 1.2.
+ * in TLS 1.3 and when using the Connection ID extension in DTLS 1.2.
  *
  * The padding will always be chosen so that the length of the
  * padded plaintext is a multiple of the value of this option.
@@ -2857,10 +2864,10 @@
  *       a power of two should be preferred.
  *
  */
-#ifdef CONFIG_MBEDTLS_SSL_DTLS_CONNECTION_ID
-#define MBEDTLS_SSL_CID_PADDING_GRANULARITY    CONFIG_MBEDTLS_SSL_CID_PADDING_GRANULARITY
+#ifdef CONFIG_MBEDTLS_SSL_CID_PADDING_GRANULARITY
+#define MBEDTLS_SSL_CID_TLS1_3_PADDING_GRANULARITY    CONFIG_MBEDTLS_SSL_CID_PADDING_GRANULARITY
 #else
-#undef MBEDTLS_SSL_CID_PADDING_GRANULARITY
+#undef MBEDTLS_SSL_CID_TLS1_3_PADDING_GRANULARITY
 #endif
 
 
