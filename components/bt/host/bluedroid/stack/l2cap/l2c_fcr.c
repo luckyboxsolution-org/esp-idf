@@ -352,6 +352,10 @@ BT_HDR *l2c_fcr_clone_buf (BT_HDR *p_buf, UINT16 new_offset, UINT16 no_of_bytes)
     buf_size += sizeof(uint32_t);
 #endif
     BT_HDR *p_buf2 = (BT_HDR *)osi_malloc(buf_size);
+    if (p_buf2 == NULL) {
+        ESP_LOGE("L2C_FCR", "%s p_buf2 alloc failed", __func__);
+        return NULL;
+    }
 
     p_buf2->offset = new_offset;
     p_buf2->len = no_of_bytes;

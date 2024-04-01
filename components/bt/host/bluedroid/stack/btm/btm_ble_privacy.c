@@ -974,11 +974,26 @@ void btm_ble_resolving_list_init(UINT8 max_irk_list_sz)
 
     if (max_irk_list_sz > 0) {
         p_q->resolve_q_random_pseudo = (BD_ADDR *)osi_malloc(sizeof(BD_ADDR) * max_irk_list_sz);
+        if (p_q->resolve_q_random_pseudo == NULL) {
+            ESP_LOGE("BTM_BLE_PRIVACY", "%s resolve_q_random_pseudo alloc failed", __func__);
+            return;
+        }
         p_q->resolve_q_action = (UINT8 *)osi_malloc(max_irk_list_sz);
+        if (p_q->resolve_q_action == NULL) {
+            ESP_LOGE("BTM_BLE_PRIVACY", "%s resolve_q_action alloc failed", __func__);
+            free(p_q->resolve_q_random_pseudo);
+            return;
+        }
 
         /* RPA offloading feature */
         if (btm_cb.ble_ctr_cb.irk_list_mask == NULL) {
             btm_cb.ble_ctr_cb.irk_list_mask = (UINT8 *)osi_malloc(irk_mask_size);
+            if (btm_cb.ble_ctr_cb.irk_list_mask == NULL) {
+                ESP_LOGE("BTM_BLE_PRIVACY", "%s irk_list_mask alloc failed", __func__);
+                free(p_q->resolve_q_random_pseudo);
+                free(p_q->resolve_q_action);
+                return;
+            }
         }
 
         BTM_TRACE_DEBUG ("%s max_irk_list_sz = %d", __func__, max_irk_list_sz);

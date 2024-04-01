@@ -296,7 +296,9 @@ void btm_acl_created (BD_ADDR bda, DEV_CLASS dc, UINT8 bdn[BTM_MAX_REM_BD_NAME_L
 
             p->p_pm_mode_db = btm_pm_sm_alloc();
 #if BTM_PM_DEBUG == TRUE
-            BTM_TRACE_DEBUG( "btm_pm_sm_alloc handle:%d st:%d", hci_handle, p->p_pm_mode_db->state);
+            if (p->p_pm_mode_db) {
+                BTM_TRACE_DEBUG( "btm_pm_sm_alloc handle:%d st:%d", hci_handle, p->p_pm_mode_db->state);
+            }
 #endif  // BTM_PM_DEBUG
 
 #if (CLASSIC_BT_INCLUDED == TRUE)

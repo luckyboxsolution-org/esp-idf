@@ -1039,23 +1039,38 @@ void btc_av_event_deep_copy(btc_msg_t *msg, void *p_dest, void *p_src)
     case BTA_AV_META_MSG_EVT:
         if (av_src->meta_msg.p_data && av_src->meta_msg.len) {
             av_dest->meta_msg.p_data = osi_calloc(av_src->meta_msg.len);
-            assert(av_dest->meta_msg.p_data);
-            memcpy(av_dest->meta_msg.p_data, av_src->meta_msg.p_data, av_src->meta_msg.len);
+            if (av_dest->meta_msg.p_data) {
+                assert(av_dest->meta_msg.p_data);
+                memcpy(av_dest->meta_msg.p_data, av_src->meta_msg.p_data, av_src->meta_msg.len);
+            } else {
+                ESP_LOGE("BTC_AV", "%s p_data alloc failed", __func__);
+            }
         }
 
         if (av_src->meta_msg.p_msg) {
             av_dest->meta_msg.p_msg = osi_calloc(sizeof(tAVRC_MSG));
-            assert(av_dest->meta_msg.p_msg);
-            memcpy(av_dest->meta_msg.p_msg, av_src->meta_msg.p_msg, sizeof(tAVRC_MSG));
+            if (av_dest->meta_msg.p_msg) {
+                assert(av_dest->meta_msg.p_msg);
+                memcpy(av_dest->meta_msg.p_msg, av_src->meta_msg.p_msg, sizeof(tAVRC_MSG));
 
-            if (av_src->meta_msg.p_msg->vendor.p_vendor_data &&
-                    av_src->meta_msg.p_msg->vendor.vendor_len) {
-                av_dest->meta_msg.p_msg->vendor.p_vendor_data = osi_calloc(
+                if (av_src->meta_msg.p_msg->vendor.p_vendor_data &&
+                        av_src->meta_msg.p_msg->vendor.vendor_len) {
+                    av_dest->meta_msg.p_msg->vendor.p_vendor_data = osi_calloc(
+                                av_src->meta_msg.p_msg->vendor.vendor_len);
+                    if (av_dest->meta_msg.p_msg->vendor.p_vendor_data) {
+                        assert(av_dest->meta_msg.p_msg->vendor.p_vendor_data);
+                        memcpy(av_dest->meta_msg.p_msg->vendor.p_vendor_data,
+                            av_src->meta_msg.p_msg->vendor.p_vendor_data,
                             av_src->meta_msg.p_msg->vendor.vendor_len);
-                assert(av_dest->meta_msg.p_msg->vendor.p_vendor_data);
-                memcpy(av_dest->meta_msg.p_msg->vendor.p_vendor_data,
-                       av_src->meta_msg.p_msg->vendor.p_vendor_data,
-                       av_src->meta_msg.p_msg->vendor.vendor_len);
+                    } else {
+                        ESP_LOGE("BTC_AV", "%s p_msg alloc failed", __func__);
+                        free(av_dest->meta_msg.p_msg);
+                        break;
+                    }
+                }
+            } else {
+                ESP_LOGE("BTC_AV", "%s p_msg alloc failed", __func__);
+                break;
             }
         }
         break;

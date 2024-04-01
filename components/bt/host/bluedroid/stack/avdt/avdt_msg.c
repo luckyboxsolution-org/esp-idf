@@ -1315,6 +1315,10 @@ BT_HDR *avdt_msg_asmbl(tAVDT_CCB *p_ccb, BT_HDR *p_buf)
          * would have allocated smaller buffer.
          */
         p_ccb->p_rx_msg = (BT_HDR *)osi_malloc(BT_DEFAULT_BUFFER_SIZE);
+        if (p_ccb->p_rx_msg == NULL) {
+            ESP_LOGE("AVDT_MSG", "%s p_rx_msg alloc failed", __func__);
+            return NULL;
+        }
         memcpy(p_ccb->p_rx_msg, p_buf,
                sizeof(BT_HDR) + p_buf->offset + p_buf->len);
 

@@ -111,6 +111,10 @@ static bool hci_hal_env_init(const hci_hal_callbacks_t *upper_callbacks, osi_thr
 
 #if (BLE_ADV_REPORT_FLOW_CONTROL == TRUE)
     hci_hal_env.adv_fc_cmd_buf = osi_calloc(HCI_CMD_LINKED_BUF_SIZE(HCIC_PARAM_SIZE_BLE_UPDATE_ADV_FLOW_CONTROL));
+    if (hci_hal_env.adv_fc_cmd_buf == NULL) {
+        ESP_LOGE("HCI_HAL_H4", "%s adv_fc_cmd_buf alloc failed", __func__);
+        return false;
+    }
     assert(hci_hal_env.adv_fc_cmd_buf != NULL);
     osi_mutex_new(&hci_hal_env.adv_flow_lock);
     osi_mutex_lock(&hci_hal_env.adv_flow_lock, OSI_MUTEX_MAX_TIMEOUT);
@@ -600,6 +604,10 @@ ble_hs_hci_rx_evt(uint8_t *hci_ev, void *arg)
     }
     uint16_t len = hci_ev[1] + 3;
     uint8_t *data = (uint8_t *)malloc(len);
+    if (data == NULL) {
+        ESP_LOGE("HCI_HAL_H4", "%s data alloc failed", __func__);
+        return 0;
+    }
     data[0] = 0x04;
     memcpy(&data[1], hci_ev, len - 1);
     ble_hci_trans_buf_free(hci_ev);
@@ -614,6 +622,10 @@ ble_hs_rx_data(struct os_mbuf *om, void *arg)
 {
     uint16_t len = om->om_len + 1;
     uint8_t *data = (uint8_t *)malloc(len);
+    if (data == NULL) {
+        ESP_LOGE("HCI_HAL_H4", "%s data alloc failed", __func__);
+        return 0;
+    }
     data[0] = 0x02;
     os_mbuf_copydata(om, 0, len - 1, &data[1]);
     host_recv_pkt_cb(data, len);

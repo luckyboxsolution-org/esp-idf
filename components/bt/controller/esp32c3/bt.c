@@ -38,6 +38,7 @@
 #include "esp_sleep.h"
 #include "esp_rom_sys.h"
 #include "phy.h"
+#include "esp_log.h"
 #if CONFIG_IDF_TARGET_ESP32C3
 #include "riscv/interrupt.h"
 #include "esp32c3/rom/rom_layout.h"
@@ -509,6 +510,10 @@ static void IRAM_ATTR task_yield_from_isr(void)
 static void *semphr_create_wrapper(uint32_t max, uint32_t init)
 {
     btdm_queue_item_t *semphr = heap_caps_calloc(1, sizeof(btdm_queue_item_t), MALLOC_CAP_8BIT|MALLOC_CAP_INTERNAL);
+    if (semphr == NULL) {
+        ESP_LOGE("BT", "%s semphr calloc failed", __func__);
+        return NULL;
+    }
     assert(semphr);
 
 #if !CONFIG_SPIRAM_USE_MALLOC
@@ -516,10 +521,20 @@ static void *semphr_create_wrapper(uint32_t max, uint32_t init)
 #else
 
     semphr->storage = heap_caps_malloc(sizeof(StaticQueue_t), MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+    if (semphr->storage == NULL) {
+        ESP_LOGE("BT", "%s semphr storage calloc failed", __func__);
+        semphr_delete_wrapper(semphr);
+        return NULL;
+    }
     assert(semphr->storage);
 
     semphr->handle = (void *)xSemaphoreCreateCountingStatic(max, init, semphr->storage);
 #endif
+    if (semphr->handle == NULL) {
+        ESP_LOGE("BT", "%s semphr create failed: no mem", __func__);
+        semphr_delete_wrapper(semphr);
+        return NULL;
+    }
     assert(semphr->handle);
     return semphr;
 }
@@ -593,14 +608,29 @@ static void *queue_create_wrapper(uint32_t queue_len, uint32_t item_size)
     btdm_queue_item_t *queue = NULL;
 
     queue = (btdm_queue_item_t*)heap_caps_malloc(sizeof(btdm_queue_item_t), MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+    if (queue == NULL) {
+        ESP_LOGE("BT", "%s queue alloc failed: no mem", __func__);
+        return NULL;
+    }
     assert(queue);
 
 #if CONFIG_SPIRAM_USE_MALLOC
 
     queue->storage = heap_caps_calloc(1, sizeof(StaticQueue_t) + (queue_len*item_size), MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+    if (queue->storage == NULL) {
+        ESP_LOGE("BT", "%s queue storage alloc failed", __func__);
+        heap_caps_free(queue);
+        return NULL;
+    }
     assert(queue->storage);
 
     queue->handle = xQueueCreateStatic( queue_len, item_size, ((uint8_t*)(queue->storage)) + sizeof(StaticQueue_t), (StaticQueue_t*)(queue->storage));
+    if (queue->handle == NULL) {
+        ESP_LOGE("BT", "%s queue create alloc failed", __func__);
+        free(queue->storage);
+        free(queue);
+        return NULL;
+    }
     assert(queue->handle);
 
 #else

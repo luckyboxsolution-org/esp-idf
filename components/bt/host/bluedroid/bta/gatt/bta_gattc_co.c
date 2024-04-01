@@ -520,6 +520,10 @@ void bta_gattc_co_cache_addr_save(BD_ADDR bd_addr, hash_key_t hash_key)
     UINT8 index = 0;
     UINT8 new_index = cache_env->num_addr;
     UINT8 *p_buf = osi_malloc(MAX_ADDR_LIST_CACHE_BUF);
+    if (p_buf == NULL) {
+        ESP_LOGE("BTA_GATTC_CO", "%s p_buf alloc failed", __func__);
+        return;
+    }
     // check the address list has the same hash key or not
     if (bta_gattc_co_find_hash_in_cache(hash_key) != INVALID_ADDR_NUM) {
         APPL_TRACE_DEBUG("%s(), the hash key already in the cache list.", __func__);

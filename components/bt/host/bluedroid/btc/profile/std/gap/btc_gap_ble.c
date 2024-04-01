@@ -1264,18 +1264,30 @@ void btc_gap_ble_arg_deep_copy(btc_msg_t *msg, void *p_dest, void *p_src)
 
         if (src->cfg_adv_data.adv_data.p_manufacturer_data) {
             dst->cfg_adv_data.adv_data.p_manufacturer_data = osi_malloc(src->cfg_adv_data.adv_data.manufacturer_len);
-            memcpy(dst->cfg_adv_data.adv_data.p_manufacturer_data, src->cfg_adv_data.adv_data.p_manufacturer_data,
-                   src->cfg_adv_data.adv_data.manufacturer_len);
+            if (dst->cfg_adv_data.adv_data.p_manufacturer_data) {
+                memcpy(dst->cfg_adv_data.adv_data.p_manufacturer_data, src->cfg_adv_data.adv_data.p_manufacturer_data,
+                    src->cfg_adv_data.adv_data.manufacturer_len);
+            } else {
+                ESP_LOGE("BTC_GAP_BLE", "%s p_manufacturer_data alloc failed", __func__);
+            }
         }
 
         if (src->cfg_adv_data.adv_data.p_service_data) {
             dst->cfg_adv_data.adv_data.p_service_data = osi_malloc(src->cfg_adv_data.adv_data.service_data_len);
-            memcpy(dst->cfg_adv_data.adv_data.p_service_data, src->cfg_adv_data.adv_data.p_service_data, src->cfg_adv_data.adv_data.service_data_len);
+            if (dst->cfg_adv_data.adv_data.p_service_data) {
+                memcpy(dst->cfg_adv_data.adv_data.p_service_data, src->cfg_adv_data.adv_data.p_service_data, src->cfg_adv_data.adv_data.service_data_len);
+            } else {
+                ESP_LOGE("BTC_GAP_BLE", "%s p_service_data alloc failed", __func__);
+            }
         }
 
         if (src->cfg_adv_data.adv_data.p_service_uuid) {
             dst->cfg_adv_data.adv_data.p_service_uuid = osi_malloc(src->cfg_adv_data.adv_data.service_uuid_len);
-            memcpy(dst->cfg_adv_data.adv_data.p_service_uuid, src->cfg_adv_data.adv_data.p_service_uuid, src->cfg_adv_data.adv_data.service_uuid_len);
+            if (dst->cfg_adv_data.adv_data.p_service_uuid) {
+                memcpy(dst->cfg_adv_data.adv_data.p_service_uuid, src->cfg_adv_data.adv_data.p_service_uuid, src->cfg_adv_data.adv_data.service_uuid_len);
+            } else {
+                ESP_LOGE("BTC_GAP_BLE", "%s p_service_uuid alloc failed", __func__);
+            }
         }
         break;
     }
@@ -1287,6 +1299,8 @@ void btc_gap_ble_arg_deep_copy(btc_msg_t *msg, void *p_dest, void *p_src)
             dst->cfg_adv_data_raw.raw_adv = osi_malloc(src->cfg_adv_data_raw.raw_adv_len);
             if (dst->cfg_adv_data_raw.raw_adv) {
                 memcpy(dst->cfg_adv_data_raw.raw_adv, src->cfg_adv_data_raw.raw_adv, src->cfg_adv_data_raw.raw_adv_len);
+            } else {
+                ESP_LOGE("BTC_GAP_BLE", "%s raw_adv alloc failed", __func__);
             }
         }
         break;
@@ -1299,6 +1313,8 @@ void btc_gap_ble_arg_deep_copy(btc_msg_t *msg, void *p_dest, void *p_src)
             dst->cfg_scan_rsp_data_raw.raw_scan_rsp = osi_malloc(src->cfg_scan_rsp_data_raw.raw_scan_rsp_len);
             if (dst->cfg_scan_rsp_data_raw.raw_scan_rsp) {
                 memcpy(dst->cfg_scan_rsp_data_raw.raw_scan_rsp, src->cfg_scan_rsp_data_raw.raw_scan_rsp, src->cfg_scan_rsp_data_raw.raw_scan_rsp_len);
+            } else {
+                ESP_LOGE("BTC_GAP_BLE", "%s raw_scan_rsp alloc failed", __func__);
             }
         }
           break;

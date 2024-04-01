@@ -125,12 +125,17 @@ static void btc_gattc_copy_req_data(btc_msg_t *msg, void *p_dest, void *p_src)
         case BTA_GATTC_READ_MULTIPLE_EVT: {
             if (p_src_data->read.p_value && p_src_data->read.p_value->p_value) {
                 p_dest_data->read.p_value = (tBTA_GATT_UNFMT  *)osi_malloc(sizeof(tBTA_GATT_UNFMT) + p_src_data->read.p_value->len);
+                if (p_dest_data->read.p_value == NULL) {
+                    ESP_LOGE("BTC_GATTC", "%s %d no mem 1\n", __func__, msg->act);
+                    break;
+                }
+
                 p_dest_data->read.p_value->p_value = (uint8_t *)(p_dest_data->read.p_value + 1);
-                if (p_dest_data->read.p_value && p_dest_data->read.p_value->p_value) {
+                if (p_dest_data->read.p_value->p_value) {
                     p_dest_data->read.p_value->len = p_src_data->read.p_value->len;
                     memcpy(p_dest_data->read.p_value->p_value, p_src_data->read.p_value->p_value, p_src_data->read.p_value->len);
                 } else {
-                    BTC_TRACE_ERROR("%s %d no mem\n", __func__, msg->act);
+                    ESP_LOGE("BTC_GATTC", "%s %d no mem 2\n", __func__, msg->act);
                 }
             }
             break;
@@ -315,7 +320,11 @@ esp_gatt_status_t btc_ble_gattc_get_service(uint16_t conn_id, esp_bt_uuid_t *svc
     tBT_UUID *bta_uuid = NULL;
     if (svc_uuid) {
         bta_uuid = osi_malloc(sizeof(tBT_UUID));
-        btc_to_bta_uuid(bta_uuid, svc_uuid);
+        if (bta_uuid) {
+            btc_to_bta_uuid(bta_uuid, svc_uuid);
+        } else {
+            return ESP_GATT_NO_RESOURCES;
+        }
     }
 
     BTA_GATTC_GetServiceWithUUID(conn_id, bta_uuid, &db, &svc_num);

@@ -338,7 +338,11 @@ bt_status_t btc_storage_load_bonded_hid_info(void)
             if (len > 0) {
                 dscp_info.descriptor.dl_len = (uint16_t)len;
                 dscp_info.descriptor.dsc_list = (uint8_t *)osi_malloc(len);
-                btc_config_get_bin(name, "HidDescriptor", (uint8_t *)dscp_info.descriptor.dsc_list, &len);
+                if (dscp_info.descriptor.dsc_list) {
+                    btc_config_get_bin(name, "HidDescriptor", (uint8_t *)dscp_info.descriptor.dsc_list, &len);
+                } else {
+                    ESP_LOGE("BTC_STORAGE", "%s dsc_list alloc failed", __func__);
+                }
             }
 
             // add extracted information to BTA HH
