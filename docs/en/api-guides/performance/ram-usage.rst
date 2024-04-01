@@ -39,6 +39,7 @@ To minimize static memory use:
 
    - Declare structures, buffers, or other variables ``const`` whenever possible. Constant data can be stored in flash not RAM. This may require changing functions in the firmware to take ``const *`` arguments instead of mutable pointer arguments. These changes can also reduce the stack usage of some functions.
    :SOC_BT_SUPPORTED: - If using Bluedroid, setting the option :ref:`CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY` will cause Bluedroid to allocate memory on initialization and free it on deinitialization. This doesn't necessarily reduce the peak memory usage, but changes it from static memory usage to runtime memory usage.
+   - If :doc:`Coredump </api-guides/core_dump>` component is enabled, `ESP_COREDUMP_LOG` macros will use ~5KB internal memory to place strings into DRAM. By disabling :ref:`CONFIG_ESP_COREDUMP_LOGS` option, these logs are disabled and the memory is reclaimed.
 
 .. _optimize-stack-sizes:
 
@@ -140,6 +141,7 @@ The following options will reduce IRAM usage of some ESP-IDF features:
     - Disabling :ref:`CONFIG_ESP_EVENT_POST_FROM_IRAM_ISR` prevents posting ``esp_event`` events from :ref:`iram-safe-interrupt-handlers` but will save some IRAM.
     - Disabling :ref:`CONFIG_SPI_MASTER_ISR_IN_IRAM` prevents spi_master interrupts from being serviced while writing to flash, and may otherwise reduce spi_master performance, but will save some IRAM.
     - Setting :ref:`CONFIG_HAL_DEFAULT_ASSERTION_LEVEL` to disable assertion for HAL component will save some IRAM especially for HAL code who calls `HAL_ASSERT` a lot and resides in IRAM.
+    :esp32c2: - Enable :ref:`CONFIG_BT_RELEASE_IRAM`. Release BT text section and merge BT data, bss & text into a large free heap region when ``esp_bt_mem_release`` is called. This makes Bluetooth unavailable until the next restart, but saving ~22 KB or more of IRAM.
 
 
 .. only:: esp32c3

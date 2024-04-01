@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2020-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -30,12 +30,13 @@ struct wpa_supplicant g_wpa_supp;
 static void *s_supplicant_task_hdl = NULL;
 static void *s_supplicant_evt_queue = NULL;
 static void *s_supplicant_api_lock = NULL;
+static bool s_supplicant_task_init_done;
 #define SUPPLICANT_API_LOCK() os_mutex_lock(s_supplicant_api_lock)
 #define SUPPLICANT_API_UNLOCK() os_mutex_unlock(s_supplicant_api_lock)
 #define SUPPLICANT_TASK_STACK_SIZE (6144 + TASK_STACK_SIZE_ADD)
 
 static int handle_action_frm(u8 *frame, size_t len,
-			     u8 *sender, u32 rssi, u8 channel)
+			     u8 *sender, int8_t rssi, u8 channel)
 {
 	struct ieee_mgmt_frame *frm = os_malloc(sizeof(struct ieee_mgmt_frame) + len);
 
@@ -61,7 +62,7 @@ static int handle_action_frm(u8 *frame, size_t len,
 
 #if defined(CONFIG_WPA_11KV_SUPPORT)
 static void handle_rrm_frame(struct wpa_supplicant *wpa_s, u8 *sender,
-			     u8 *payload, size_t len, u32 rssi)
+			     u8 *payload, size_t len, int8_t rssi)
 {
 	if (payload[0] == WLAN_RRM_NEIGHBOR_REPORT_RESPONSE) {
 		/* neighbor report parsing */
@@ -77,7 +78,7 @@ static void handle_rrm_frame(struct wpa_supplicant *wpa_s, u8 *sender,
 	}
 }
 
-static int mgmt_rx_action(u8 *frame, size_t len, u8 *sender, u32 rssi, u8 channel)
+static int mgmt_rx_action(u8 *frame, size_t len, u8 *sender, int8_t rssi, u8 channel)
 {
 	u8 category;
 	u8 bssid[ETH_ALEN];
@@ -145,11 +146,6 @@ static void btm_rrm_task(void *pvParameters)
 	os_queue_delete(s_supplicant_evt_queue);
 	s_supplicant_evt_queue = NULL;
 
-	if (s_supplicant_api_lock) {
-		os_semphr_delete(s_supplicant_api_lock);
-		s_supplicant_api_lock = NULL;
-	}
-
 	/* At this point, we completed */
 	os_task_delete(NULL);
 }
@@ -208,7 +204,7 @@ static void register_mgmt_frames(struct wpa_supplicant *wpa_s)
 
 #ifdef CONFIG_IEEE80211R
 static int handle_auth_frame(u8 *frame, size_t len,
-			     u8 *sender, u32 rssi, u8 channel)
+			     u8 *sender, int8_t rssi, u8 channel)
 {
 	if (gWpaSm.key_mgmt == WPA_KEY_MGMT_FT_PSK) {
 		if (gWpaSm.ft_protocol) {
@@ -223,7 +219,7 @@ static int handle_auth_frame(u8 *frame, size_t len,
 }
 
 static int handle_assoc_frame(u8 *frame, size_t len,
-			      u8 *sender, u32 rssi, u8 channel)
+			      u8 *sender, int8_t rssi, u8 channel)
 {
 	if (gWpaSm.key_mgmt == WPA_KEY_MGMT_FT_PSK) {
 		if (gWpaSm.ft_protocol) {
@@ -239,8 +235,16 @@ static int handle_assoc_frame(u8 *frame, size_t len,
 #endif /* CONFIG_IEEE80211R */
 #endif /* defined(CONFIG_WPA_11KV_SUPPORT) || defined(CONFIG_IEEE80211R) */
 
+void esp_supplicant_unset_all_appie(void)
+{
+   uint8_t appie;
+   for (appie = WIFI_APPIE_PROBEREQ; appie < WIFI_APPIE_RAM_MAX; appie++) {
+        esp_wifi_unset_appie_internal(appie);
+   }
+}
+
 static int ieee80211_handle_rx_frm(u8 type, u8 *frame, size_t len, u8 *sender,
-				   u32 rssi, u8 channel, u64 current_tsf)
+				   int8_t rssi, u8 channel, u64 current_tsf)
 {
 	int ret = 0;
 
@@ -315,7 +319,10 @@ int esp_supplicant_common_init(struct wpa_funcs *wpa_cb)
 
 #if defined(CONFIG_WPA_11KV_SUPPORT) || defined(CONFIG_IEEE80211R)
 #ifdef CONFIG_SUPPLICANT_TASK
-	s_supplicant_api_lock = os_recursive_mutex_create();
+	if (!s_supplicant_api_lock) {
+		s_supplicant_api_lock = os_recursive_mutex_create();
+	}
+
 	if (!s_supplicant_api_lock) {
 		wpa_printf(MSG_ERROR, "%s: failed to create Supplicant API lock", __func__);
 		ret = -1;
@@ -335,6 +342,7 @@ int esp_supplicant_common_init(struct wpa_funcs *wpa_cb)
 		ret = -1;
 		goto err;
 	}
+	s_supplicant_task_init_done = true;
 #endif /* CONFIG_SUPPLICANT_TASK */
 #ifdef CONFIG_WPA_11KV_SUPPORT
 	wpas_rrm_reset(wpa_s);
@@ -380,7 +388,8 @@ void esp_supplicant_common_deinit(void)
 	}
 #if defined(CONFIG_WPA_11KV_SUPPORT) || defined(CONFIG_IEEE80211R)
 #ifdef CONFIG_SUPPLICANT_TASK
-	if (!s_supplicant_task_hdl && esp_supplicant_post_evt(SIG_SUPPLICANT_DEL_TASK, 0) != 0) {
+	/* We have failed to create task, delete queue and exit */
+	if (!s_supplicant_task_hdl) {
 		if (s_supplicant_evt_queue) {
 			os_queue_delete(s_supplicant_evt_queue);
 			s_supplicant_evt_queue = NULL;
@@ -389,7 +398,14 @@ void esp_supplicant_common_deinit(void)
 			os_semphr_delete(s_supplicant_api_lock);
 			s_supplicant_api_lock = NULL;
 		}
+	} else if (esp_supplicant_post_evt(SIG_SUPPLICANT_DEL_TASK, 0) != 0) {
+		/* failed to post delete event, just delete event queue and exit */
+		if (s_supplicant_evt_queue) {
+			os_queue_delete(s_supplicant_evt_queue);
+			s_supplicant_evt_queue = NULL;
+		}
 	}
+	s_supplicant_task_init_done = false;
 #endif /* CONFIG_SUPPLICANT_TASK */
 #endif /* defined(CONFIG_WPA_11KV_SUPPORT) || defined(CONFIG_IEEE80211R) */
 }
@@ -512,12 +528,14 @@ int esp_wnm_send_bss_transition_mgmt_query(enum btm_query_reason query_reason,
 	return wnm_send_bss_transition_mgmt_query(wpa_s, query_reason, btm_candidates, cand_list);
 }
 
+#ifdef CONFIG_MBO
 int esp_mbo_update_non_pref_chan(struct non_pref_chan_s *non_pref_chan)
 {
 	int ret = wpas_mbo_update_non_pref_chan(&g_wpa_supp, non_pref_chan);
 
 	return ret;
 }
+#endif /* CONFIG_MBO */
 
 void wpa_supplicant_connect(struct wpa_supplicant *wpa_s,
 			    struct wpa_bss *bss, char *ssid)
@@ -781,27 +799,32 @@ cleanup:
 int esp_supplicant_post_evt(uint32_t evt_id, uint32_t data)
 {
 	supplicant_event_t *evt = os_zalloc(sizeof(supplicant_event_t));
-	if (evt == NULL) {
+	if (!evt) {
+		wpa_printf(MSG_ERROR, "Failed to allocated memory");
 		return -1;
 	}
 	evt->id = evt_id;
 	evt->data = data;
 
 	/* Make sure lock exists before taking it */
-	if (s_supplicant_api_lock) {
-		SUPPLICANT_API_LOCK();
-	} else {
+	SUPPLICANT_API_LOCK();
+
+	/* Make sure no event can be sent when deletion event is sent or task not initialized */
+	if (!s_supplicant_task_init_done) {
+		SUPPLICANT_API_UNLOCK();
 		os_free(evt);
 		return -1;
 	}
+
 	if (os_queue_send(s_supplicant_evt_queue, &evt, os_task_ms_to_tick(10)) != TRUE) {
 		SUPPLICANT_API_UNLOCK();
 		os_free(evt);
 		return -1;
 	}
-	if (evt_id != SIG_SUPPLICANT_DEL_TASK) {
-	    SUPPLICANT_API_UNLOCK();
+	if (evt_id == SIG_SUPPLICANT_DEL_TASK) {
+		s_supplicant_task_init_done = false;
 	}
+	SUPPLICANT_API_UNLOCK();
 	return 0;
 }
 #endif /* CONFIG_SUPPLICANT_TASK */
@@ -819,10 +842,6 @@ int esp_wnm_send_bss_transition_mgmt_query(enum btm_query_reason query_reason,
 	return -1;
 }
 
-int esp_mbo_update_non_pref_chan(struct non_pref_chan_s *non_pref_chan)
-{
-	return -1;
-}
 void esp_set_scan_ie(void) { }
 #endif /* defined(CONFIG_WPA_11KV_SUPPORT) || defined(CONFIG_IEEE80211R) */
 

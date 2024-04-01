@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -86,9 +86,9 @@
 #define SOC_CPU_INTR_NUM                32
 #define SOC_CPU_HAS_FLEXIBLE_INTC       1
 
-#define SOC_CPU_BREAKPOINTS_NUM         2
-#define SOC_CPU_WATCHPOINTS_NUM         2
-#define SOC_CPU_WATCHPOINT_SIZE         0x80000000 // bytes
+#define SOC_CPU_BREAKPOINTS_NUM             2
+#define SOC_CPU_WATCHPOINTS_NUM             2
+#define SOC_CPU_WATCHPOINT_MAX_REGION_SIZE  0x80000000 // bytes
 
 #define SOC_CPU_IDRAM_SPLIT_USING_PMP   1
 
@@ -165,6 +165,9 @@
 #define SOC_RSA_MAX_BIT_LEN    (3072)
 
 /*--------------------------- SHA CAPS ---------------------------------------*/
+
+/* Due to very limited availability of the DMA channels, DMA support for the SHA peripheral is disabled */
+// #define SOC_SHA_SUPPORT_DMA             (1)
 
 /* The SHA engine is able to resume hashing from a user */
 #define SOC_SHA_SUPPORT_RESUME          (1)
@@ -256,6 +259,9 @@
 // UART has an extra TX_WAIT_SEND state when the FIFO is not empty and XOFF is enabled
 #define SOC_UART_SUPPORT_FSM_TX_WAIT_SEND   (1)
 
+/*-------------------------- COEXISTENCE CAPS -------------------------------*/
+#define SOC_SUPPORT_COEXISTENCE     (1)
+
 /*-------------------------- COEXISTENCE HARDWARE PTI CAPS -------------------------------*/
 #define SOC_COEX_HW_PTI                 (1)
 
@@ -278,7 +284,7 @@
 
 /*------------------------------------ WI-FI CAPS ------------------------------------*/
 #define SOC_WIFI_HW_TSF                 (1)    /*!< Support hardware TSF */
-#define SOC_WIFI_FTM_SUPPORT            (0)    /*!< FTM is not supported */
+#define SOC_WIFI_FTM_SUPPORT            (1)    /*!< Support FTM */
 #define SOC_WIFI_GCMP_SUPPORT           (0)    /*!< GCMP is not supported(GCMP128 and GCMP256) */
 #define SOC_WIFI_WAPI_SUPPORT           (0)    /*!< WAPI is not supported */
 #define SOC_WIFI_CSI_SUPPORT            (0)    /*!< CSI is not supported */

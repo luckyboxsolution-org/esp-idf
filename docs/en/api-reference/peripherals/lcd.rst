@@ -13,7 +13,7 @@ In ``esp_lcd``, an LCD panel is represented by :cpp:type:`esp_lcd_panel_handle_t
 
 .. list::
 
-    - Controller based LCD driver involves multiple steps to get a panel handle, like bus allocation, IO device registration and controller driver install. The frame buffer is located in the controller's internal GRAM (Graphical RAM). ESP-IDF provides only a limited number of LCD controller drivers out of the box (e.g. ST7789, SSD1306), :ref:`more_controller_based_lcd_drivers` are maintained in the `Espressif Component Registry <https://components.espressif.com/>_`.
+    - Controller based LCD driver involves multiple steps to get a panel handle, like bus allocation, IO device registration and controller driver install. The frame buffer is located in the controller's internal GRAM (Graphical RAM). ESP-IDF provides only a limited number of LCD controller drivers out of the box (e.g., ST7789, SSD1306), :ref:`more_controller_based_lcd_drivers` are maintained in the `Espressif Component Registry <https://components.espressif.com/>`__.
     - :ref:`spi_lcd_panel` describes the steps to install the SPI LCD IO driver and then get the panel handle.
     - :ref:`i2c_lcd_panel` describes the steps to install the I2C LCD IO driver and then get the panel handle.
     :SOC_LCD_I80_SUPPORTED: - :ref:`i80_lcd_panel` describes the steps to install the I80 LCD IO driver and then get the panel handle.
@@ -66,15 +66,16 @@ SPI Interfaced LCD
 #. Install the LCD controller driver. The LCD controller driver is responsible for sending the commands and parameters to the LCD controller chip. In this step, you need to specify the SPI IO device handle that allocated in the last step, and some panel specific configurations:
 
     - :cpp:member:`esp_lcd_panel_dev_config_t::reset_gpio_num` sets the LCD's hardware reset GPIO number. If the LCD does not have a hardware reset pin, set this to ``-1``.
-    - :cpp:member:`esp_lcd_panel_dev_config_t::rgb_endian` sets the endian of the RGB color data.
-    - :cpp:member:`esp_lcd_panel_dev_config_t::bits_per_pixel` sets the bit width of the pixel color data. The LCD driver will use this value to calculate the number of bytes to send to the LCD controller chip.
+    - :cpp:member:`esp_lcd_panel_dev_config_t::rgb_ele_order` sets the R-G-B element order of each color data.
+    - :cpp:member:`esp_lcd_panel_dev_config_t::bits_per_pixel` sets the bit width of the pixel color data. The LCD driver uses this value to calculate the number of bytes to send to the LCD controller chip.
+    - :cpp:member:`esp_lcd_panel_dev_config_t::data_endian` specifies the data endian to be transmitted to the screen. No need to specify for color data within 1 byte, like RGB232. For drivers that do not support specifying data endian, this field would be ignored.
 
     .. code-block:: c
 
         esp_lcd_panel_handle_t panel_handle = NULL;
         esp_lcd_panel_dev_config_t panel_config = {
             .reset_gpio_num = EXAMPLE_PIN_NUM_RST,
-            .rgb_endian = LCD_RGB_ENDIAN_BGR,
+            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR,
             .bits_per_pixel = 16,
         };
         // Create LCD panel handle for ST7789, with the SPI IO device handle
@@ -200,13 +201,13 @@ I2C Interfaced LCD
 
         - :cpp:member:`esp_lcd_panel_dev_config_t::bits_per_pixel` sets the bit width of the pixel color data. The LCD driver will use this value to calculate the number of bytes to send to the LCD controller chip.
         - :cpp:member:`esp_lcd_panel_dev_config_t::reset_gpio_num` sets the GPIO number of the reset pin. If the LCD controller chip does not have a reset pin, you can set this value to ``-1``.
-        - :cpp:member:`esp_lcd_panel_dev_config_t::rgb_endian` sets the endian of the pixel color data.
+        - :cpp:member:`esp_lcd_panel_dev_config_t::rgb_ele_order` sets the color order the pixel color data.
 
         .. code-block:: c
 
             esp_lcd_panel_dev_config_t panel_config = {
                 .reset_gpio_num = EXAMPLE_PIN_NUM_RST,
-                .rgb_endian = LCD_RGB_ENDIAN_RGB,
+                .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
                 .bits_per_pixel = 16,
             };
             ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(io_handle, &panel_config, &panel_handle));

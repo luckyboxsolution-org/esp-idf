@@ -171,7 +171,7 @@ config SOC_CPU_WATCHPOINTS_NUM
     int
     default 2
 
-config SOC_CPU_WATCHPOINT_SIZE
+config SOC_CPU_WATCHPOINT_MAX_REGION_SIZE
     hex
     default 0x80000000
 
@@ -527,6 +527,10 @@ config SOC_UART_SUPPORT_FSM_TX_WAIT_SEND
     bool
     default y
 
+config SOC_SUPPORT_COEXISTENCE
+    bool
+    default y
+
 config SOC_COEX_HW_PTI
     bool
     default y
@@ -565,7 +569,7 @@ config SOC_WIFI_HW_TSF
 
 config SOC_WIFI_FTM_SUPPORT
     bool
-    default n
+    default y
 
 config SOC_WIFI_GCMP_SUPPORT
     bool

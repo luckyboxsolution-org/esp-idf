@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * SPDX-FileContributor: 2021-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2021-2024 Espressif Systems (Shanghai) CO LTD
  */
 
 #include <string.h>
@@ -226,7 +226,7 @@ static esp_err_t init_set_defaults(emac_ksz8851snl_t *emac)
     ESP_GOTO_ON_ERROR(ksz8851_set_bits(emac, KSZ8851_RXDTTR, RXDTTR_INIT_VALUE), err, TAG, "RXDTTR write failed");
     ESP_GOTO_ON_ERROR(ksz8851_set_bits(emac, KSZ8851_RXDBCTR, RXDBCTR_INIT_VALUE), err, TAG, "RXDBCTR write failed");
     ESP_GOTO_ON_ERROR(ksz8851_set_bits(emac, KSZ8851_RXCR1,
-                                       RXCR1_RXUDPFCC | RXCR1_RXTCPFCC | RXCR1_RXIPFCC | RXCR1_RXPAFMA | RXCR1_RXFCE | RXCR1_RXBE | RXCR1_RXUE | RXCR1_RXME), err, TAG, "RXCR1 write failed");
+                                       RXCR1_RXUDPFCC | RXCR1_RXTCPFCC | RXCR1_RXIPFCC | RXCR1_RXPAFMA | RXCR1_RXFCE | RXCR1_RXUE | RXCR1_RXME | RXCR1_RXMAFMA | RXCR1_RXAE), err, TAG, "RXCR1 write failed");
     ESP_GOTO_ON_ERROR(ksz8851_set_bits(emac, KSZ8851_RXCR2,
                                        (4 << RXCR2_SRDBL_SHIFT) | RXCR2_IUFFP | RXCR2_RXIUFCEZ | RXCR2_UDPLFE | RXCR2_RXICMPFCC), err, TAG, "RXCR2 write failed");
     ESP_GOTO_ON_ERROR(ksz8851_set_bits(emac, KSZ8851_RXQCR, RXQCR_RXFCTE | RXQCR_ADRFE), err, TAG, "RXQCR write failed");
@@ -599,13 +599,13 @@ static esp_err_t emac_ksz8851_set_promiscuous(esp_eth_mac_t *mac, bool enable)
     if (enable) {
         // NOTE(v.chistyakov): set promiscuous mode
         ESP_LOGD(TAG, "setting promiscuous mode");
-        rxcr1 |= RXCR1_RXINVF | RXCR1_RXAE;
+        rxcr1 |= RXCR1_RXAE | RXCR1_RXINVF;
         rxcr1 &= ~(RXCR1_RXPAFMA | RXCR1_RXMAFMA);
     } else {
         // NOTE(v.chistyakov): set hash perfect (default)
-        ESP_LOGD(TAG, "setting hash perfect mode");
-        rxcr1 |= RXCR1_RXPAFMA;
-        rxcr1 &= ~(RXCR1_RXINVF | RXCR1_RXAE | RXCR1_RXMAFMA);
+        ESP_LOGD(TAG, "setting perfect with multicast passed");
+        rxcr1 |= RXCR1_RXAE| RXCR1_RXPAFMA | RXCR1_RXMAFMA;
+        rxcr1 &= ~RXCR1_RXINVF;
     }
     ESP_GOTO_ON_ERROR(ksz8851_write_reg(emac, KSZ8851_RXCR1, rxcr1), err, TAG, "RXCR1 write failed");
 err:
@@ -638,6 +638,7 @@ static esp_err_t emac_ksz8851_set_peer_pause_ability(esp_eth_mac_t *mac, uint32_
 static void emac_ksz8851snl_task(void *arg)
 {
     emac_ksz8851snl_t *emac = (emac_ksz8851snl_t *)arg;
+    esp_err_t ret;
     while (1) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
@@ -691,31 +692,35 @@ static void emac_ksz8851snl_task(void *arg)
                 /* define max expected frame len */
                 uint32_t frame_len = ETH_MAX_PACKET_SIZE;
                 uint8_t *buffer;
-                emac_ksz8851_alloc_recv_buf(emac, &buffer, &frame_len);
-                /* we have memory to receive the frame of maximal size previously defined */
-                if (buffer != NULL) {
-                    uint32_t buf_len = KSZ8851_ETH_MAC_RX_BUF_SIZE_AUTO;
-                    if (emac->parent.receive(&emac->parent, buffer, &buf_len) == ESP_OK) {
-                        if (buf_len == 0) {
+                if ((ret = emac_ksz8851_alloc_recv_buf(emac, &buffer, &frame_len)) == ESP_OK) {
+                    if (buffer != NULL) {
+                        /* we have memory to receive the frame of maximal size previously defined */
+                        uint32_t buf_len = KSZ8851_ETH_MAC_RX_BUF_SIZE_AUTO;
+                        if (emac->parent.receive(&emac->parent, buffer, &buf_len) == ESP_OK) {
+                            if (buf_len == 0) {
+                                emac_ksz8851_flush_recv_queue(emac);
+                                free(buffer);
+                            } else if (frame_len > buf_len) {
+                                ESP_LOGE(TAG, "received frame was truncated");
+                                free(buffer);
+                            } else {
+                                ESP_LOGD(TAG, "receive len=%u", buf_len);
+                                /* pass the buffer to stack (e.g. TCP/IP layer) */
+                                emac->eth->stack_input(emac->eth, buffer, buf_len);
+                            }
+                        } else {
+                            ESP_LOGE(TAG, "frame read from module failed");
                             emac_ksz8851_flush_recv_queue(emac);
                             free(buffer);
-                        } else if (frame_len > buf_len) {
-                            ESP_LOGE(TAG, "received frame was truncated");
-                            free(buffer);
-                        } else {
-                            ESP_LOGD(TAG, "receive len=%u", buf_len);
-                            /* pass the buffer to stack (e.g. TCP/IP layer) */
-                            emac->eth->stack_input(emac->eth, buffer, buf_len);
                         }
-                    } else {
-                        ESP_LOGE(TAG, "frame read from module failed");
-                        emac_ksz8851_flush_recv_queue(emac);
-                        free(buffer);
+                    } else if (frame_len) {
+                        ESP_LOGE(TAG, "invalid combination of frame_len(%u) and buffer pointer(%p)", frame_len, buffer);
                     }
-                /* if allocation failed and there is a waiting frame */
-                } else if (frame_len) {
+                } else if (ret == ESP_ERR_NO_MEM) {
                     ESP_LOGE(TAG, "no mem for receive buffer");
                     emac_ksz8851_flush_recv_queue(emac);
+                } else {
+                    ESP_LOGE(TAG, "unexpected error 0x%x", ret);
                 }
             }
             ksz8851_write_reg(emac, KSZ8851_IER, ier);
